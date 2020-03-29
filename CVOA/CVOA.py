@@ -3,7 +3,7 @@ from copy import deepcopy
 import numpy as np
 import sys as sys
 import random as random
-from DEEP_LEARNING.LSTM import fit_lstm_model, getMetrics_denormalized, resetTF
+from DEEP_LEARNING.LSTM import fit_model, getMetrics_denormalized, resetTF
 
 
 class CVOA:
@@ -18,7 +18,7 @@ class CVOA:
     SUPERSPREADER_PERC = 0.04
     DEATH_PERC = 0.5 
 
-    def __init__(self, size_fixed_part, min_size_var_part, max_size_var_part, fixed_part_max_values, var_part_max_value, max_time, xtrain=None, ytrain=None, xval=None, yval=None, pred_horizon=24, epochs=10, batch=1024, train_gen=False, valid_gen=False, scaler=None, use_generator=False, model='lstm'):
+    def __init__(self, size_fixed_part, min_size_var_part, max_size_var_part, fixed_part_max_values, var_part_max_value, max_time, xtrain=None, ytrain=None, xval=None, yval=None, pred_horizon=24, epochs=10, batch=1024, train_gen=False, valid_gen=False, scaler=None, use_generator=False, model='lstm', window=None, natts=None):
         self.infected = []
         self.recovered = []
         self.deaths = []
@@ -38,8 +38,10 @@ class CVOA:
         self.scaler = scaler
         self.use_generator = use_generator
         self.train_generator = train_gen
-        self.test_generator = valid_gen
+        self.valid_generator = valid_gen
         self.model = model
+        self.window = window
+        self.natts = natts
 
     def calcSearchSpaceSize (self):
         """
@@ -154,10 +156,10 @@ class CVOA:
 
 
     def fitness(self, individual):
-        mse, mape, model = fit_lstm_model(xtrain=self.xtrain, ytrain=self.ytrain, xval=self.xval, yval=self.yval,
+        mse, mape, model = fit_model(train_gen=self.train_generator, val_gen=self.valid_generator, xtrain=self.xtrain, ytrain=self.ytrain, xval=self.xval, yval=self.yval,
                                          individual_fixed_part=individual.fixed_part,
                                          individual_variable_part=individual.var_part, scaler=self.scaler,
-                                         prediction_horizon=self.pred_horizon, epochs=self.epochs, batch=self.batch)
+                                         prediction_horizon=self.pred_horizon, epochs=self.epochs, batch=self.batch, model=self.model, window=self.window, natts = self.natts)
         print(individual)
-        print("---\n" + "MSE: ", " {:.4f}".format(mse) + " ; MAPE: ", " {:.4f}".format(mape) + "\n---")
+        print("---\n" + "MSE: ", " {:.4f}".format(str(mse)) + " ; MAPE: ", " {:.4f}".format(str(mape)) + "\n---")
         return mape.numpy(), model

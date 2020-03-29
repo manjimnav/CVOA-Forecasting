@@ -2,19 +2,36 @@ import pandas as pd
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.model_selection import train_test_split
 
-def load_data(path_to_data, useNormalization=False):
+
+def load_data(path_to_data, useNormalization=False, use_generator=False, usecols = None, date_column=None, header=None, target=None):
     """
     Load dataset and normalize
     :param path_to_data: Path to de input dataset
     :return: Normalized dataset as one-column vector and scaler object
     """
-    data = pd.read_csv(path_to_data, header=None, engine="python", index_col=0, squeeze=True, usecols=[0,1], parse_dates=[0], date_parser=lambda x: pd.datetime.strptime(x,'%Y-%m-%d %H:%M'))
-    data = data.values.astype("float32").reshape(-1, 1)
+    print(header)
+    data = pd.read_csv(path_to_data, header=header, engine="python", squeeze=True, usecols=usecols) #, parse_dates=[0], date_parser=lambda x: pd.datetime.strptime(x, date_format)
+
+    data[date_column] = pd.to_datetime(data[date_column])
+    data = data.set_index(date_column)
+    print(data.head())
+    if len(data.columns) < 3:
+        data_values = data.values.astype("float32").reshape(-1, 1)
+    else:
+        data_values = data.values.astype("float32")
+
     scaler = None
+    scaler_target = None
+    data_scaled = data_values
     if useNormalization:
         scaler = MinMaxScaler(feature_range=(0, 1))
-        data = scaler.fit_transform(data)
-    return data, scaler
+        scaler_target = MinMaxScaler(feature_range=(0, 1))
+        data_scaled = scaler.fit_transform(data_values)
+        scaler_target.fit(data[target].values.reshape(-1, 1))
+    if use_generator:
+        data_scaled = pd.DataFrame(data_scaled, index=data.index, columns=data.columns)
+
+    return data_scaled, scaler, scaler_target
 
 
 def data_to_supervised(data, historical_window, prediction_horizon):
@@ -46,7 +63,7 @@ def data_to_supervised(data, historical_window, prediction_horizon):
     return agg
 
 
-def splitData(data, historical_window, test_size=.3, val_size=.3):
+def splitData(data, historical_window, test_size=.3, val_size=.3, use_generator=False, target=None):
     """
     Split data into training, validation and test. Also splitted into X and Y
     :param data: Data to be splitted
@@ -55,8 +72,12 @@ def splitData(data, historical_window, test_size=.3, val_size=.3):
     :param val_size: Percentaje of the val_size
     :return:
     """
-    X = data.iloc[:, 0:historical_window]
-    Y = data.iloc[:, historical_window:]
+    if not use_generator:
+        X = data.iloc[:, 0:historical_window]
+        Y = data.iloc[:, historical_window:]
+    else:
+        X = data.values
+        Y = data[target].values
     xTrain, xTest, yTrain, yTest = train_test_split(X, Y, test_size=test_size, random_state=0)
     xTrain, xVal, yTrain, yVal = train_test_split(xTrain, yTrain, test_size=val_size, random_state=0)
     return xTrain, xTest, yTrain, yTest, xVal, yVal
