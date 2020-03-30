@@ -140,10 +140,15 @@ class CVOA:
         total_ss = self.calcSearchSpaceSize()
         while epidemic and time < self.max_time:
             self.propagateDisease()
-            dmse, dmape = getMetrics_denormalized(model=self.bestModel, xval = self.xval, yval = self.yval, batch = self.batch, scaler = self.scaler)
+            if self.use_generator:
+                mse, mape = getMetrics_denormalized(self.bestModel, self.batch, self.scaler, val_gen=self.valid_generator)
+                mse = mse[0]
+                mape=mape[0]
+            else:
+                mse, dmape = getMetrics_denormalized(model=self.bestModel, xval = self.xval, yval = self.yval, batch = self.batch, scaler = self.scaler)
             print("Iteration ", (time + 1))
             #print("Best fitness so far: ", "{:.4f}".format(self.bestSolution.fitness))
-            print("Best fitness (MAPE ; MSE ) so far: ", "{:.4f}".format(self.bestSolution.fitness), " ; {:.4f}".format(dmse))
+            print("Best fitness (MAPE ; MSE ) so far: ", "{:.4f}".format(self.bestSolution.fitness), " ; {:.4f}".format(mse))
             print("Best individual: ", self.bestSolution)
             print("Infected: ", str(len(self.infected)), "; Recovered: ", str(len(self.recovered)), "; Deaths: ", str(len(self.deaths)))
             print("Recovered/Infected: " + str("{:.4f}".format(100 * ((len(self.recovered)) / len(self.infected)))) + "%")
@@ -161,5 +166,5 @@ class CVOA:
                                          individual_variable_part=individual.var_part, scaler=self.scaler,
                                          prediction_horizon=self.pred_horizon, epochs=self.epochs, batch=self.batch, model=self.model, window=self.window, natts = self.natts)
         print(individual)
-        print("---\n" + "MSE: ", " {:.4f}".format(str(mse)) + " ; MAPE: ", " {:.4f}".format(str(mape)) + "\n---")
-        return mape.numpy(), model
+        print("---\n" + "MSE: ", " {:.4f}".format(mse[0]) + " ; MAPE: ", " {:.4f}".format(mape[0]) + "\n---")
+        return mape[0], model

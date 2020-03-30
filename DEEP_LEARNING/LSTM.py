@@ -79,7 +79,6 @@ def fit_enc_dec_att_model(train_gen, val_gen, individual_fixed_part, individual_
     out = Attention()(out)
 
     for j in range(individual_fixed_part[2]-1, -1, -1):
-        print(j)
         if j > 0:
             out = LSTM(units=hp_parser["units"][individual_variable_part[j]], return_sequences=True)(out)
         else:
@@ -88,7 +87,6 @@ def fit_enc_dec_att_model(train_gen, val_gen, individual_fixed_part, individual_
 
     out = Dense(units=prediction_horizon, activation="relu")(out)
     model = tf.keras.Model(inputs=inp, outputs=out)
-    print(model.summary())
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_parser["learning_rate"][individual_fixed_part[0]]), loss="mean_squared_error", metrics=[keras.metrics.MAPE, keras.metrics.MSE])
     model.fit_generator(train_gen, epochs=epochs, verbose=0, validation_data=val_gen)
     mse, mape = getMetrics_denormalized(model, batch, scaler, val_gen=val_gen)
