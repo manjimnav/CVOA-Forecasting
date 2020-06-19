@@ -60,13 +60,16 @@ class CVOA:
         res *= pow(self.var_part_max_value, self.max_size_var_part)
         return res
 
+    def run_fitness(self, pop):
+        return [self.fitness(x) for x in pop]
+
     def propagateDisease(self):
         new_infected_list = []
         # Step 1. Assess fitness for each individual.
 
         pool = Pool(processes=self.processes)
         items_per_group = math.ceil(len(self.infected)/self.processes)
-        results = pool.map(self.fitness, [self.infected[i:i + items_per_group] for i in range(0, len(self.infected), items_per_group)])
+        results = pool.map(self.run_fitness, [self.infected[i:i + items_per_group] for i in range(0, len(self.infected), items_per_group)])
         for ind, model in results:
             # x.fitness, model = self.fitness(x)
             # If x.fitness is NaN, move from infected list to deaths lists
