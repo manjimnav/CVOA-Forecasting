@@ -6,19 +6,21 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense, LSTM, Dropout, Attention
 from tensorflow.compat.v1 import ConfigProto
 from tensorflow.compat.v1 import InteractiveSession
+from tensorflow.keras.callbacks import EarlyStopping, ReduceLROnPlateau
 
 config = ConfigProto()
 config.gpu_options.allow_growth = True
 session = InteractiveSession(config=config)
 
-#physical_devices = tf.config.list_physical_devices('GPU') # Obtener la lista de GPU's instaladas en la maquina
-#tf.config.experimental.set_memory_growth(physical_devices[0], True)
+physical_devices = tf.config.list_physical_devices('GPU') # Obtener la lista de GPU's instaladas en la maquina
+tf.config.experimental.set_memory_growth(physical_devices[0], True)
 print(tf.__version__)
 
 if tf.test.gpu_device_name():
     print('Default GPU Device: {}'.format(tf.test.gpu_device_name()))
 else:
     print("Please install GPU version of TF")
+
 print("Num GPUs Available: ", len(tf.config.experimental.list_physical_devices('GPU')))
 #print(tf.config.list_physical_devices('GPU'))
 print(tf.test.is_built_with_cuda())
@@ -65,7 +67,7 @@ def fit_enc_dec_att_model(train_gen, val_gen, individual_fixed_part, individual_
     dp = hp_parser["dropout"][individual_fixed_part[1]] / individual_fixed_part[2]
     inp = tf.keras.layers.Input(shape=(window, natts))
     out = None
-    for i in range(0, individual_fixed_part[2]):
+    for i in range(individual_fixed_part[2]):
         if i == 0:
             out = LSTM(units=hp_parser["units"][individual_variable_part[i]], return_sequences=True)(inp)
             out = Dropout(dp)(out)
@@ -74,7 +76,6 @@ def fit_enc_dec_att_model(train_gen, val_gen, individual_fixed_part, individual_
             out = Dropout(dp)(out)
         else:
             out = LSTM(units=hp_parser["units"][individual_variable_part[i]], return_sequences=True, return_state=True)(out)
-
 
     out = Attention()(out)
 
@@ -88,9 +89,13 @@ def fit_enc_dec_att_model(train_gen, val_gen, individual_fixed_part, individual_
     out = Dense(units=prediction_horizon, activation="relu")(out)
     model = tf.keras.Model(inputs=inp, outputs=out)
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_parser["learning_rate"][individual_fixed_part[0]]), loss="mean_squared_error", metrics=[keras.metrics.MAPE, keras.metrics.MSE])
-    model.fit_generator(train_gen, epochs=epochs, verbose=0, validation_data=val_gen)
-    mse, mape = getMetrics_denormalized(model, batch, scaler, val_gen=val_gen)
-    return mse, mape, model
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.2,
+                                                     patience=5, min_lr=0.0002)
+    es = EarlyStopping(monitor='val_loss', patience=10, mode='auto', restore_best_weights=True)
+
+    model.fit(train_gen, epochs=epochs, verbose=0, validation_data=val_gen, callbacks=[reduce_lr, es])
+    mse, mape, mae = getMetrics_denormalized(model, batch, scaler, val_gen=val_gen)
+    return mse, mape, mae, model
 
 
 def fit_lstm_model(xtrain, ytrain, xval, yval, individual_fixed_part, individual_variable_part, prediction_horizon, scaler, epochs=10, batch=1024):
@@ -110,11 +115,12 @@ def fit_lstm_model(xtrain, ytrain, xval, yval, individual_fixed_part, individual
         else:
             model.add(LSTM(units=hp_parser["units"][individual_variable_part[i]], return_sequences=False))
         model.add(Dropout(dp))
+
     model.add(Dense(units=prediction_horizon, activation="tanh"))
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_parser["learning_rate"][individual_fixed_part[0]]), loss="mean_squared_error", metrics=[keras.metrics.MAPE, keras.metrics.MSE])
     model.fit(x=xtrain, y=ytrain, epochs=epochs, batch_size=batch, verbose=0, validation_data=(xval, yval))
-    mse, mape = getMetrics_denormalized(model, batch, scaler, xval, yval)
-    return mse, mape, model 
+    mse, mape, mae = getMetrics_denormalized(model, batch, scaler, xval, yval)
+    return mse, mape, mae, model
 
 
 def getMetrics_denormalized(model,  batch, scaler, xval=None, yval=None, val_gen=None):
@@ -128,14 +134,12 @@ def getMetrics_denormalized(model,  batch, scaler, xval=None, yval=None, val_gen
         pred = scaler.inverse_transform(pred.reshape(1, -1))
         real = scaler.inverse_transform(real.reshape(1, -1))
 
-        print(pred.shape)
-        print(real.shape)
     else:
         predictions = model.predict(xval, batch_size=batch, verbose=0)
         pred = scaler.inverse_transform(predictions.reshape(1, -1)).flatten()
         real = scaler.inverse_transform(yval.reshape(1, -1)).flatten()
 
-    return keras.metrics.MSE(real, pred), keras.metrics.mape(real, pred)
+    return keras.metrics.MSE(real, pred), keras.metrics.mape(real, pred), keras.metrics.MAE(real, pred)
 
 
 def resetTF():

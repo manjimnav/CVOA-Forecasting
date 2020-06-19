@@ -9,12 +9,12 @@ def load_data(path_to_data, useNormalization=False, use_generator=False, usecols
     :param path_to_data: Path to de input dataset
     :return: Normalized dataset as one-column vector and scaler object
     """
-    print(header)
+
     data = pd.read_csv(path_to_data, header=header, engine="python", squeeze=True, usecols=usecols) #, parse_dates=[0], date_parser=lambda x: pd.datetime.strptime(x, date_format)
 
     data[date_column] = pd.to_datetime(data[date_column])
     data = data.set_index(date_column)
-    print(data.head())
+
     if len(data.columns) < 3:
         data_values = data.values.astype("float32").reshape(-1, 1)
     else:

@@ -4,7 +4,6 @@ from ETL.datagenerator import DataGenerator
 from DEEP_LEARNING.LSTM import *
 import time as time
 import argparse
-from operator import itemgetter
 
 
 if __name__ == '__main__':
@@ -16,13 +15,15 @@ if __name__ == '__main__':
     parser.add_argument("-t", "--test", help="Test size", default=.3)
     parser.add_argument("-v", "--val", help="Validation size", default=.3)
     parser.add_argument("-e", "--epochs",  type=int, help="Number of epochs", default=10)
-    parser.add_argument("-b", "--batch",type=int, help="Batch size", default=1024)
+    parser.add_argument("-b", "--batch", type=int, help="Batch size", default=1024)
     parser.add_argument("-dc", "--datecolumn", help="Date column name", default='FECHA_HORA')
     parser.add_argument("-he", "--header", help="Header row", type=int, default=None)
     parser.add_argument("-n", "--normalize", help="Normalize data", action="store_true", default=True)
     parser.add_argument("-tg", "--target", help="Target attribute", default=None)
     parser.add_argument("-m", "--model", help="Type of model (encoder-decoder,  encoder-attention-decoder, lstm)",
                         choices=['encoder-decoder', 'encoder-attention-decoder', 'lstm'], default='lstm')
+    parser.add_argument("-p", "--processes", help="Number of processes (Default 2)",
+                        type=int, default=2)
 
     args = parser.parse_args()
     # Deep Learning parameters
@@ -30,7 +31,8 @@ if __name__ == '__main__':
     batch = args.batch
 
     # Load the dataset
-    data, scaler, scaler_target = load_data(path_to_data=args.data, useNormalization=True, date_column=args.datecolumn, use_generator=args.generator, header=args.header, target=args.target)
+    data, scaler, scaler_target = load_data(path_to_data=args.data, useNormalization=True, date_column=args.datecolumn,
+                                            use_generator=args.generator, header=args.header, target=args.target)
     if not args.generator:
         # Transform data to a supervised dataset
         data = data_to_supervised(data, historical_window=args.window, prediction_horizon=args.horizon)
@@ -45,7 +47,7 @@ if __name__ == '__main__':
         # Initialize problem
         cvoa = CVOA(size_fixed_part=3, min_size_var_part=2, max_size_var_part=11, fixed_part_max_values=[5, 8],
                     var_part_max_value=11, max_time=20, xtrain=xtrain, ytrain=ytrain, xval=xval, yval=yval,
-                    pred_horizon=24, epochs=epochs, batch=batch, scaler=scaler, model=args.model)
+                    pred_horizon=24, epochs=epochs, batch=batch, scaler=scaler, model=args.model, processes=args.processes)
 
     else:
         train_generator = DataGenerator(xtrain,

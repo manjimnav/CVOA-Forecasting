@@ -4,6 +4,8 @@ import numpy as np
 import sys as sys
 import random as random
 from DEEP_LEARNING.LSTM import fit_model, getMetrics_denormalized, resetTF
+from multiprocessing import Pool
+import math
 
 
 class CVOA:
@@ -18,7 +20,7 @@ class CVOA:
     SUPERSPREADER_PERC = 0.04
     DEATH_PERC = 0.5 
 
-    def __init__(self, size_fixed_part, min_size_var_part, max_size_var_part, fixed_part_max_values, var_part_max_value, max_time, xtrain=None, ytrain=None, xval=None, yval=None, pred_horizon=24, epochs=10, batch=1024, train_gen=False, valid_gen=False, scaler=None, use_generator=False, model='lstm', window=None, natts=None):
+    def __init__(self, size_fixed_part, min_size_var_part, max_size_var_part, fixed_part_max_values, var_part_max_value, max_time, xtrain=None, ytrain=None, xval=None, yval=None, pred_horizon=24, epochs=10, batch=1024, train_gen=False, valid_gen=False, scaler=None, use_generator=False, model='lstm', window=None, natts=None, processes=2):
         self.infected = []
         self.recovered = []
         self.deaths = []
@@ -42,6 +44,7 @@ class CVOA:
         self.model = model
         self.window = window
         self.natts = natts
+        self.processes = processes
 
     def calcSearchSpaceSize (self):
         """
@@ -60,17 +63,21 @@ class CVOA:
     def propagateDisease(self):
         new_infected_list = []
         # Step 1. Assess fitness for each individual.
-        for x in self.infected:
-            x.fitness, model  = self.fitness(x)
+
+        pool = Pool(processes=self.processes)
+        items_per_group = math.ceil(len(self.infected)/self.processes)
+        results = pool.map(self.fitness, [self.infected[i:i + items_per_group] for i in range(0, len(self.infected), items_per_group)])
+        for ind, model in results:
+            # x.fitness, model = self.fitness(x)
             # If x.fitness is NaN, move from infected list to deaths lists
-            if np.isnan(x.fitness):
-                self.deaths.append(x)
-                self.infected.remove(x)
+            if np.isnan(ind.fitness):
+                self.deaths.append(ind)
+                self.infected.remove(ind)
 
         # Step 2. Sort the infected list by fitness (ascendent).
         self.infected = sorted(self.infected, key=lambda i: i.fitness)
         # Step 3. Update best global solution, if proceed.
-        if self.bestSolution.fitness==None or self.infected[0].fitness < self.bestSolution.fitness:
+        if self.bestSolution.fitness is None or self.infected[0].fitness < self.bestSolution.fitness:
             self.bestModel = model
             model.save("bestModel.h5")
             self.bestSolution = deepcopy(self.infected[0])
@@ -123,16 +130,15 @@ class CVOA:
         # Step 7. Update the infected list with the new infected individuals.
         self.infected = new_infected_list
 
-
     def run(self):
         epidemic = True
         time = 0
         # Step 1. Infect to Patient Zero
-        #pz = Individual.random(size_fixed_part=self.size_fixed_part, min_size_var_part=self.min_size_var_part, max_size_var_part=self.max_size_var_part, fixed_part_max_values=self.fixed_part_max_values, var_part_max_value=self.var_part_max_value)
+        pz = Individual.random(size_fixed_part=self.size_fixed_part, min_size_var_part=self.min_size_var_part, max_size_var_part=self.max_size_var_part, fixed_part_max_values=self.fixed_part_max_values, var_part_max_value=self.var_part_max_value)
         # custom pz
-        pz = Individual(self.size_fixed_part, self.min_size_var_part, self.max_size_var_part, self.fixed_part_max_values, self.var_part_max_value)
-        pz.fixed_part = [4, 0, 4]
-        pz.var_part = [7, 6, 0, 8]
+        #pz = Individual(self.size_fixed_part, self.min_size_var_part, self.max_size_var_part, self.fixed_part_max_values, self.var_part_max_value)
+        #pz.fixed_part = [4, 0, 4]
+        #pz.var_part = [7, 6, 0, 8]
         self.infected.append(pz)
         print("Patient Zero: " + str(pz) + "\n")
         self.bestSolution = deepcopy(pz)
@@ -146,6 +152,7 @@ class CVOA:
                 mape=mape[0]
             else:
                 mse, dmape = getMetrics_denormalized(model=self.bestModel, xval = self.xval, yval = self.yval, batch = self.batch, scaler = self.scaler)
+
             print("Iteration ", (time + 1))
             #print("Best fitness so far: ", "{:.4f}".format(self.bestSolution.fitness))
             print("Best fitness (MAPE ; MSE ) so far: ", "{:.4f}".format(self.bestSolution.fitness), " ; {:.4f}".format(mse))
@@ -159,12 +166,11 @@ class CVOA:
                 epidemic = False
             time += 1
 
-
     def fitness(self, individual):
-        mse, mape, model = fit_model(train_gen=self.train_generator, val_gen=self.valid_generator, xtrain=self.xtrain, ytrain=self.ytrain, xval=self.xval, yval=self.yval,
+        mse, mape, mae, model = fit_model(train_gen=self.train_generator, val_gen=self.valid_generator, xtrain=self.xtrain, ytrain=self.ytrain, xval=self.xval, yval=self.yval,
                                          individual_fixed_part=individual.fixed_part,
                                          individual_variable_part=individual.var_part, scaler=self.scaler,
                                          prediction_horizon=self.pred_horizon, epochs=self.epochs, batch=self.batch, model=self.model, window=self.window, natts = self.natts)
         print(individual)
-        print("---\n" + "MSE: ", " {:.4f}".format(mse[0]) + " ; MAPE: ", " {:.4f}".format(mape[0]) + "\n---")
+        print("---\n" + "MSE: ", " {:.4f}".format(mse[0]) + " ; MAPE: ", " {:.4f}".format(mape[0])+ " ; MAE: ", " {:.4f}".format(mae[0]) + "\n---")
         return mape[0], model
