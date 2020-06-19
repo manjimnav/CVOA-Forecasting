@@ -12,8 +12,6 @@ config = ConfigProto()
 config.gpu_options.allow_growth = True
 session = InteractiveSession(config=config)
 
-physical_devices = tf.config.list_physical_devices('GPU') # Obtener la lista de GPU's instaladas en la maquina
-tf.config.experimental.set_memory_growth(physical_devices[0], True)
 print(tf.__version__)
 
 if tf.test.gpu_device_name():
@@ -68,7 +66,8 @@ def fit_enc_dec_att_model(train_gen, val_gen, individual_fixed_part, individual_
     inp = tf.keras.layers.Input(shape=(window, natts))
     out = None
     for i in range(individual_fixed_part[2]):
-        if i == 0:
+
+        if i == 0 and individual_fixed_part[2] > 1:
             out = LSTM(units=hp_parser["units"][individual_variable_part[i]], return_sequences=True)(inp)
             out = Dropout(dp)(out)
         elif i < (individual_fixed_part[2] - 1):
@@ -95,7 +94,7 @@ def fit_enc_dec_att_model(train_gen, val_gen, individual_fixed_part, individual_
 
     model.fit(train_gen, epochs=epochs, verbose=0, validation_data=val_gen, callbacks=[reduce_lr, es])
     mse, mape, mae = getMetrics_denormalized(model, batch, scaler, val_gen=val_gen)
-    return mse, mape, mae, model
+    return mse, mape, mae
 
 
 def fit_lstm_model(xtrain, ytrain, xval, yval, individual_fixed_part, individual_variable_part, prediction_horizon, scaler, epochs=10, batch=1024):
@@ -120,7 +119,7 @@ def fit_lstm_model(xtrain, ytrain, xval, yval, individual_fixed_part, individual
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=hp_parser["learning_rate"][individual_fixed_part[0]]), loss="mean_squared_error", metrics=[keras.metrics.MAPE, keras.metrics.MSE])
     model.fit(x=xtrain, y=ytrain, epochs=epochs, batch_size=batch, verbose=0, validation_data=(xval, yval))
     mse, mape, mae = getMetrics_denormalized(model, batch, scaler, xval, yval)
-    return mse, mape, mae, model
+    return mse, mape, mae
 
 
 def getMetrics_denormalized(model,  batch, scaler, xval=None, yval=None, val_gen=None):
