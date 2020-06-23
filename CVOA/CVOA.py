@@ -3,9 +3,8 @@ from copy import deepcopy
 import numpy as np
 import sys as sys
 import random as random
-#from DEEP_LEARNING.LSTM import resetTF
-#from multiprocessing import Pool
-#import math
+from multiprocessing import Pool
+import math
 
 
 class CVOA:
@@ -20,8 +19,9 @@ class CVOA:
     SUPERSPREADER_PERC = 0.04
     DEATH_PERC = 0.5
 
-    def __init__(self, size_fixed_part, fixed_part_max_values,
-                 max_time, processes=2, use_var_part=True,discrete=True, fitness=None,var_part_max_value=None, min_size_var_part=None, max_size_var_part=None):
+    def __init__(self, size_fixed_part, fixed_part_max_values,fixed_part_min_values,
+                 max_time, processes=2, use_var_part=True,discrete=True, fitness=None,var_part_max_value=None,
+                 min_size_var_part=None, max_size_var_part=None, initial_fixed_part=None, initial_var_part=None):
         self.infected = []
         self.recovered = []
         self.deaths = []
@@ -29,6 +29,7 @@ class CVOA:
         self.max_size_var_part = max_size_var_part
         self.size_fixed_part = size_fixed_part
         self.fixed_part_max_values = fixed_part_max_values
+        self.fixed_part_min_values = fixed_part_min_values
         self.var_part_max_value = var_part_max_value
         self.max_time = max_time
 
@@ -36,6 +37,8 @@ class CVOA:
         self.use_var_part = use_var_part
         self.discrete = discrete
         self.fitness = fitness
+        self.initial_fixed_part = initial_fixed_part
+        self.initial_var_part = initial_var_part
 
     def calcSearchSpaceSize(self):
         """
@@ -54,27 +57,26 @@ class CVOA:
         return res
 
     def run_fitness(self, pop):
-        print(pop)
         return [self.fitness(x) for x in pop]
 
     def propagateDisease(self):
         new_infected_list = []
         # Step 1. Assess fitness for each individual.
 
-        #pool = Pool(processes=self.processes)
-        #items_per_group = math.ceil(len(self.infected) / self.processes)
-        #print(items_per_group)
-        #results = pool.map(self.run_fitness, [self.infected[i:i + items_per_group] for i in
-        #                                      range(0, len(self.infected), items_per_group)])
-        #print(results)
-        #for ind in (item for sublist in results for item in sublist):
+        pool = Pool(processes=self.processes)
+        items_per_group = math.ceil(len(self.infected) / self.processes)
+        results = pool.map(self.run_fitness, [self.infected[i:i + items_per_group] for i in
+                                              range(0, len(self.infected), items_per_group)])
+        for i, ind in enumerate((item for sublist in results for item in sublist)):
 
-        for ind in self.infected:
-            ind = self.fitness(ind)
+            self.infected[i] = ind
+            #for ind in self.infected:
+                #ind = self.fitness(ind)
             # If x.fitness is NaN, move from infected list to deaths lists
             if np.isnan(ind.fitness):
                 self.deaths.append(ind)
                 self.infected.remove(ind)
+
 
         # Step 2. Sort the infected list by fitness (ascendent).
         self.infected = sorted(self.infected, key=lambda i: i.fitness)
@@ -147,10 +149,16 @@ class CVOA:
         pz = Individual.random(size_fixed_part=self.size_fixed_part, min_size_var_part=self.min_size_var_part,
                                        max_size_var_part=self.max_size_var_part,
                                        fixed_part_max_values=self.fixed_part_max_values,
+                                    fixed_part_min_values=self.fixed_part_min_values,
                                        var_part_max_value=self.var_part_max_value, use_var_part=self.use_var_part,
                                        discrete=self.discrete)
-        pz.fixed_part = [100.24, 20.3]
-        #pz.var_part = [1, 1]
+
+        if self.initial_fixed_part is not None:
+            pz.fixed_part = self.initial_fixed_part
+
+        if self.initial_var_part is not None:
+            #pz.fixed_part = [100.24, 20.3]
+            pz.var_part = self.initial_var_part
         self.infected.append(pz)
         print("Patient Zero: " + str(pz) + "\n")
         self.bestSolution = deepcopy(pz)
