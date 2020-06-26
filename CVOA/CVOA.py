@@ -48,7 +48,7 @@ class CVOA:
         res = 0
         # Part 1. Fixed part possible combinations.
         for i in range(len(self.fixed_part_max_values)):
-            t *= self.fixed_part_max_values[i]
+            t *= (self.fixed_part_max_values[i] - self.fixed_part_min_values[i]) + 1
         res += t
         if self.use_var_part:
             res *= self.max_size_var_part
@@ -65,13 +65,13 @@ class CVOA:
 
         pool = Pool(processes=self.processes)
         items_per_group = math.ceil(len(self.infected) / self.processes)
-        results = pool.map(self.run_fitness, [self.infected[i:i + items_per_group] for i in
-                                              range(0, len(self.infected), items_per_group)])
-        for i, ind in enumerate((item for sublist in results for item in sublist)):
+        #results = pool.map(self.run_fitness, [self.infected[i:i + items_per_group] for i in
+                                              #range(0, len(self.infected), items_per_group)])
+        #for i, ind in enumerate((item for sublist in results for item in sublist)):
 
-            self.infected[i] = ind
-            #for ind in self.infected:
-                #ind = self.fitness(ind)
+           # self.infected[i] = ind
+        for ind in self.infected:
+            ind = self.fitness(ind)
             # If x.fitness is NaN, move from infected list to deaths lists
             if np.isnan(ind.fitness):
                 self.deaths.append(ind)
@@ -184,7 +184,7 @@ class CVOA:
             print("Infected: ", str(len(self.infected)), "; Recovered: ", str(len(self.recovered)), "; Deaths: ",
                   str(len(self.deaths)))
             print(
-                "Recovered/Infected: " + str("{:.4f}".format(100 * ((len(self.recovered)) / len(self.infected)))) + "%")
+                "Recovered/Infected: " + str("{:.4f}".format(100 * ((len(self.recovered)) / (len(self.infected)+1)))) + "%")
             current_ss = len(self.infected) + len(self.recovered) + len(self.deaths)
             print("Search space covered so far = " + str(current_ss) + " / " + str(total_ss) + " = " +
                   str("{:.4f}".format(100 * (current_ss) / total_ss)) + "%\n")

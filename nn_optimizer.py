@@ -117,6 +117,7 @@ def main():
                           model=args.model, window=args.window, natts=xtrain.shape[1])
         # Initialize problem
         cvoa = CVOA(size_fixed_part=3, min_size_var_part=2, max_size_var_part=11, fixed_part_max_values=[5, 8],
+                    fixed_part_min_values=[0, 0],
                     var_part_max_value=11, max_time=20,processes=args.processes, use_var_part=args.use_variable,
                     discrete=args.discrete, fitness=fitness)
 
@@ -134,7 +135,7 @@ def main():
                           model=args.model, window=args.window, natts=xtrain.shape[1])
 
         cvoa = CVOA(size_fixed_part=3, min_size_var_part=2, max_size_var_part=11, fixed_part_max_values=[5, 8],
-                    var_part_max_value=11, max_time=20,
+                    var_part_max_value=11, max_time=20,fixed_part_min_values=[0, 0],
                     use_var_part=args.use_variable, discrete=args.discrete, fitness=fitness)
 
     start_time = int(round(time.time() * 1000))

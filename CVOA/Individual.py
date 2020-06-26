@@ -82,6 +82,7 @@ class Individual:
             change = np.random.normal(0, std, 1)[0]
 
         new_value = value + change
+
         if new_value < min_value:
             new_value = min_value
         elif new_value > max_value:
